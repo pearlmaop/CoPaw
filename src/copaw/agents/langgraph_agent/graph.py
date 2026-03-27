@@ -254,7 +254,8 @@ def create_copaw_graph(
 
     compiled = graph.compile(**compile_kwargs)
 
-    # Store max_iterations so callers can pass it in the RunnableConfig
+    # Maximum recursion limit: each agent step takes at most 2 graph steps
+    # (reasoning + tool execution), plus a safety margin of 10.
     compiled._copaw_recursion_limit = max_iterations * 2 + 10
 
     return compiled

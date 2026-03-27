@@ -811,7 +811,6 @@ class TestLangGraphAgentRunner:
         assert _is_approval("") is False
         assert _is_approval("  approve  ") is True  # stripped whitespace
 
-
 # ---------------------------------------------------------------------------
 # 7. llm_factory.py
 # ---------------------------------------------------------------------------
@@ -983,7 +982,8 @@ class TestEndToEndFlow:
         agent._graph = graph
 
         reply = await agent.reply("Call the echo tool", session_id="e2e-1")
-        assert "echo" in reply.lower() or "ping" in reply.lower() or reply
+        assert isinstance(reply, str)
+        assert len(reply) > 0
 
     async def test_agent_guard_disabled_when_no_engine(self) -> None:
         """Setting tool_guard_engine=None skips guarding entirely."""

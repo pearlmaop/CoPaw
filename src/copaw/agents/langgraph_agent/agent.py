@@ -272,11 +272,14 @@ class CoPawLangGraphAgent:
 
         multimodal: bool = get_active_model_supports_multimodal()
 
+        # Tools that require multimodal (vision) model support
+        _MULTIMODAL_ONLY_TOOLS = frozenset({"view_image"})
+
         filtered = [
             fn
             for fn in all_tool_functions
             if enabled_map.get(fn.__name__, True)
-            and not (fn.__name__ == "view_image" and not multimodal)
+            and not (fn.__name__ in _MULTIMODAL_ONLY_TOOLS and not multimodal)
         ]
 
         return adapt_tools(filtered)

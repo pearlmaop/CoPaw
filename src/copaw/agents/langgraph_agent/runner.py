@@ -29,12 +29,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_APPROVE_EXACT = frozenset({"approve", "/approve", "/daemon approve"})
+_APPROVE_COMMANDS = frozenset({"approve", "/approve", "/daemon approve"})
 
 
 def _is_approval(text: str) -> bool:
     """Return ``True`` when *text* is exactly an approval command."""
-    return " ".join(text.split()).lower() in _APPROVE_EXACT
+    return " ".join(text.split()).lower() in _APPROVE_COMMANDS
 
 
 class LangGraphAgentRunner:
@@ -144,10 +144,10 @@ class LangGraphAgentRunner:
             async for snapshot in agent.astream(query, session_id=session_id):
                 messages = snapshot.get("messages", [])
                 # Yield the content of the latest AIMessage if it has text
-                for msg in reversed(messages):
-                    if isinstance(msg, AIMessage):
+                for message in reversed(messages):
+                    if isinstance(message, AIMessage):
                         text = CoPawLangGraphAgentRunnerHelper.extract_text(
-                            msg
+                            message
                         )
                         if text:
                             yield text
