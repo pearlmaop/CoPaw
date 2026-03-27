@@ -15,8 +15,9 @@ class MinerUAdapter(BaseExtractor):
 
     def extract(self, file_path: Path) -> List[Dict[str, Any]]:
         try:
-            # MinerU real integration not yet configured; fall back immediately
-            raise ImportError("MinerU integration not configured; using fallback")
+            from magic_pdf.data.data_reader_writer import FileBasedDataWriter  # noqa: F401
+            # Real MinerU extraction would go here when magic_pdf is installed
+            raise ImportError("MinerU not installed; using PDFAdapter fallback")
         except ImportError:
             logger.warning("MinerU not available, falling back to PDFAdapter")
             from copaw_tool.adapters.extraction.docx_pdf_adapter import PDFAdapter

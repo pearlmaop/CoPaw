@@ -6,7 +6,7 @@ from copaw_tool.domain.model.strategy_ir import StrategyIR, Rule, Condition, Act
 DEFAULT_SYNONYMS: Dict[str, str] = {
     "开": "开启", "关": "关闭", "使能": "开启", "禁止": "关闭",
     "true": "开启", "false": "关闭", "1": "开启", "0": "关闭",
-    "有效": "有效", "无效": "无效", "enable": "开启", "disable": "关闭",
+    "enable": "开启", "disable": "关闭",
 }
 
 

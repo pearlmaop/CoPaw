@@ -23,7 +23,7 @@ def test_docx_adapter_no_docx_library(tmp_path):
     adapter = DocxAdapter()
     fake_file = tmp_path / "test.docx"
     fake_file.write_bytes(b"fake content")
-    with patch.dict("sys.modules", {"docx": None}):
+    with patch("builtins.__import__", side_effect=ImportError("no module named docx")):
         result = adapter.extract(fake_file)
     assert len(result) == 1
     assert "error" in result[0]
@@ -33,7 +33,13 @@ def test_pdf_adapter_no_pdf_library(tmp_path):
     adapter = PDFAdapter()
     fake_file = tmp_path / "test.pdf"
     fake_file.write_bytes(b"fake content")
-    with patch.dict("sys.modules", {"pdfplumber": None, "fitz": None}):
+
+    def _raise_import(name, *args, **kwargs):
+        if name in ("pdfplumber", "fitz"):
+            raise ImportError(f"No module named '{name}'")
+        raise ImportError("no module")
+
+    with patch("builtins.__import__", side_effect=_raise_import):
         result = adapter.extract(fake_file)
     assert len(result) == 1
     assert "error" in result[0]

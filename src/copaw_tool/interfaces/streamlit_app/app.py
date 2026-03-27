@@ -59,10 +59,10 @@ def main():
         }
 
         with st.spinner("处理中，请稍候..."):
-            if callable(workflow) and not hasattr(workflow, "invoke"):
-                final_state = workflow(initial_state)
-            else:
+            if hasattr(workflow, "invoke"):
                 final_state = workflow.invoke(initial_state)
+            else:
+                final_state = workflow(initial_state)
 
         final_output = final_state.get("final_output") or {}
         pseudocode = final_output.get("pseudocode") or final_state.get("pseudocode", "")

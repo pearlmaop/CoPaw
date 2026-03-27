@@ -13,7 +13,7 @@ def ir_build_node(state: GraphState) -> GraphState:
         try:
             strategy_ir_dict = llm_client.extract_strategy_ir(text)
         except Exception as e:
-            errors.append(f"LLM IR extraction failed: {e}, falling back to rule parser")
+            errors.append(f"LLM IR extraction failed: {str(e)}, falling back to rule parser")
 
     if strategy_ir_dict is None:
         parser = RuleParser()
