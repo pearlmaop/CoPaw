@@ -1,0 +1,46 @@
+[project]
+name = "copaw-tool"
+version = "0.1.0"
+description = "嵌入式软件策略伪代码快速生成工具 - Embedded Software Strategy Pseudocode Generation Tool"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "openai>=1.0.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langgraph>=0.2.0",
+]
+extraction = [
+    "python-docx>=1.1.0",
+    "pdfplumber>=0.11.0",
+]
+ui = [
+    "streamlit>=1.28.0",
+]
+full = [
+    "copaw-tool[llm,extraction,ui]",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
