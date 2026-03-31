@@ -13,6 +13,15 @@ def test_health_endpoint() -> None:
         assert "default" in body["loaded_agents"]
 
 
+def test_console_page_served() -> None:
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "TestPaw Console" in resp.text
+
+
 def test_chat_tool_path() -> None:
     app = create_app()
     with TestClient(app) as client:
@@ -69,6 +78,31 @@ def test_module_endpoints() -> None:
         scan = client.post("/skills/scan", json={"text": "safe text"})
         assert scan.status_code == 200
         assert scan.json()["safe"] is True
+
+        skills = client.get("/skills")
+        assert skills.status_code == 200
+        assert len(skills.json()["skills"]) >= 1
+
+        disable_skill = client.post("/skills/summary/enable", json={"enabled": False})
+        assert disable_skill.status_code == 200
+        assert disable_skill.json()["ok"] is True
+
+        run_disabled_skill = client.post(
+            "/skills/summary/run",
+            json={"text": "line1\nline2"},
+        )
+        assert run_disabled_skill.status_code == 200
+        assert run_disabled_skill.json()["ok"] is False
+
+        enable_skill = client.post("/skills/summary/enable", json={"enabled": True})
+        assert enable_skill.status_code == 200
+
+        run_skill = client.post(
+            "/skills/summary/run",
+            json={"text": "line1\nline2"},
+        )
+        assert run_skill.status_code == 200
+        assert run_skill.json()["ok"] is True
 
         providers = client.get("/providers")
         assert providers.status_code == 200

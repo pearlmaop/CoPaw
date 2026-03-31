@@ -32,5 +32,8 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+testpaw = ["api/console/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

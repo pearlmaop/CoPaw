@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import os
+from pathlib import Path
 import tempfile
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from starlette.responses import StreamingResponse
+from starlette.responses import HTMLResponse, StreamingResponse
+from starlette.staticfiles import StaticFiles
 
 from testpaw.agents import AgentRegistry
 from testpaw.approvals import ApprovalService
@@ -20,6 +22,7 @@ from testpaw.tokenizer import estimate_tokens
 from testpaw.tunnel import TunnelManager
 from testpaw.runtime.workspace import Workspace
 from testpaw.security.skill_scanner import SkillScanner
+from testpaw.skills import SkillManager
 
 
 class ChatRequest(BaseModel):
@@ -81,6 +84,14 @@ class TunnelOpenRequest(BaseModel):
     local_port: int
 
 
+class SkillToggleRequest(BaseModel):
+    enabled: bool
+
+
+class SkillRunRequest(BaseModel):
+    text: str = Field(default="")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     data_dir = os.environ.get("TESTPAW_DATA_DIR")
@@ -96,6 +107,7 @@ async def lifespan(app: FastAPI):
     tunnel = TunnelManager()
     token_usage = TokenUsageTracker()
     agent_registry = AgentRegistry()
+    skills = SkillManager()
 
     default_ws = await manager.get_agent(config.get().default_agent)
 
@@ -109,6 +121,7 @@ async def lifespan(app: FastAPI):
     app.state.tunnel_manager = tunnel
     app.state.token_usage = token_usage
     app.state.agent_registry = agent_registry
+    app.state.skill_manager = skills
     app.state.default_workspace = default_ws
     try:
         yield
@@ -118,6 +131,12 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
+    console_dir = Path(__file__).resolve().parent / "console"
+    app.mount("/assets", StaticFiles(directory=str(console_dir)), name="assets")
+
+    @app.get("/")
+    async def home() -> HTMLResponse:
+        return HTMLResponse((console_dir / "index.html").read_text(encoding="utf-8"))
 
     @app.get("/health")
     async def health() -> dict:
@@ -245,6 +264,28 @@ def create_app() -> FastAPI:
         text = str(payload.get("text", ""))
         result = scanner.scan(text)
         return {"safe": result.safe, "findings": result.findings}
+
+    @app.get("/skills")
+    async def list_skills() -> dict:
+        mgr: SkillManager = app.state.skill_manager
+        return {"skills": mgr.list_skills()}
+
+    @app.post("/skills/{skill_id}/enable")
+    async def set_skill_enabled(skill_id: str, payload: SkillToggleRequest) -> dict:
+        mgr: SkillManager = app.state.skill_manager
+        try:
+            skill = mgr.set_enabled(skill_id, payload.enabled)
+            return {"ok": True, "skill": skill}
+        except ValueError:
+            return {"ok": False, "error": "skill not found"}
+
+    @app.post("/skills/{skill_id}/run")
+    async def run_skill(skill_id: str, payload: SkillRunRequest) -> dict:
+        mgr: SkillManager = app.state.skill_manager
+        try:
+            return mgr.run(skill_id, payload.text)
+        except ValueError:
+            return {"ok": False, "error": "skill not found"}
 
     @app.post("/approvals/request")
     async def create_approval(payload: ApprovalRequest) -> dict:

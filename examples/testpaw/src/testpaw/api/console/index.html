@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TestPaw Console</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <h1>TestPaw Console</h1>
+        <p>类似 CoPaw 的轻量控制台: 模型配置、Skill 管理、会话聊天一站完成。</p>
+      </header>
+
+      <section class="panel two-col">
+        <div class="card">
+          <h2>模型配置</h2>
+          <div id="providers" class="list"></div>
+          <form id="providerForm" class="stack">
+            <label>Provider ID<input name="provider_id" placeholder="openai-compatible" required /></label>
+            <label>Model<input name="model" placeholder="gpt-4o-mini" /></label>
+            <label>Base URL<input name="base_url" placeholder="https://api.openai.com/v1" /></label>
+            <label>API Key<input name="api_key" placeholder="sk-..." /></label>
+            <button type="submit">保存配置</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Skill 使用</h2>
+          <div id="skills" class="list"></div>
+          <form id="skillRunForm" class="stack">
+            <label>Skill ID<input name="skill_id" placeholder="summary" required /></label>
+            <label>输入文本<textarea name="text" rows="5" placeholder="输入你要处理的内容"></textarea></label>
+            <button type="submit">运行 Skill</button>
+          </form>
+          <pre id="skillOutput" class="output"></pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="card">
+          <h2>聊天</h2>
+          <form id="chatForm" class="stack">
+            <label>Agent ID<input name="agent_id" value="default" /></label>
+            <label>消息<textarea name="text" rows="4" placeholder="请输入消息"></textarea></label>
+            <button type="submit">发送</button>
+          </form>
+          <pre id="chatOutput" class="output"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

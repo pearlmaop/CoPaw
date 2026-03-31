@@ -146,6 +146,7 @@ normalize -> guard -> plan -> run_tool 或 model_reply -> end
 
 主要接口：
 
+1. GET /
 1. GET /health
 1. POST /chat
 1. POST /chat/stream
@@ -159,10 +160,29 @@ normalize -> guard -> plan -> run_tool 或 model_reply -> end
 1. POST /mcp/register
 1. GET /mcp/clients
 1. GET /memory/{session_id}
+1. GET /skills
+1. POST /skills/{skill_id}/enable
+1. POST /skills/{skill_id}/run
 1. POST /skills/scan
 1. GET /providers
 1. POST /providers/activate
 1. POST /providers/{provider_id}/config
+
+## Web Console 页面（已内置）
+
+启动服务后，直接打开：
+
+```bash
+http://127.0.0.1:8090/
+```
+
+页面提供三块核心能力：
+
+1. 模型配置区：可查看 provider 列表、配置 model/base_url/api_key、切换激活 provider。
+2. Skill 使用区：可查看 skills、启用/禁用技能、输入文本并执行 skill。
+3. 聊天区：可直接发送消息到指定 agent 并查看返回结果。
+
+说明：这次修复了你提到的 `{ "detail": "Not Found" }` 问题，根路径已返回控制台页面。
 
 ## Provider 说明
 
@@ -222,6 +242,10 @@ python -m testpaw.cli.main app --host 127.0.0.1 --port 8090
 curl http://127.0.0.1:8090/health
 ```
 
+4.1 打开控制台页面
+
+在浏览器访问 `http://127.0.0.1:8090/`，你会看到模型配置、skill 使用和聊天面板。
+
 5. 调用聊天接口（非流式）
 
 ```bash
@@ -245,6 +269,19 @@ curl -N -X POST http://127.0.0.1:8090/chat/stream \
 curl -X POST http://127.0.0.1:8090/providers/activate \
   -H "Content-Type: application/json" \
   -d '{"provider_id":"mock"}'
+
+# 列出 skills
+curl http://127.0.0.1:8090/skills
+
+# 启用/禁用 skill
+curl -X POST http://127.0.0.1:8090/skills/summary/enable \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":true}'
+
+# 运行 skill
+curl -X POST http://127.0.0.1:8090/skills/summary/run \
+  -H "Content-Type: application/json" \
+  -d '{"text":"line1\nline2\nline3"}'
 
 # Token 计数
 curl -X POST http://127.0.0.1:8090/tokenizer/count \
