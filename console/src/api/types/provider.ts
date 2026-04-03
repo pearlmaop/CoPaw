@@ -102,6 +102,10 @@ export interface LocalServerStatus {
   message: string | null;
 }
 
+export interface LocalServerUpdateStatus {
+  has_update: boolean;
+}
+
 export interface LocalDownloadProgress {
   status:
     | "idle"
