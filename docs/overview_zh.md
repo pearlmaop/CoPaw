@@ -173,6 +173,5 @@ cd website && npm run format
 ## 12. 相关链接
 
 - 项目 README（中文）：`README_zh.md`
-- 项目文档：<https://copaw.agentscope.io/>
+- 项目文档：[copaw.agentscope.io](https://copaw.agentscope.io/)
 - 贡献指南：`CONTRIBUTING_zh.md`
-
