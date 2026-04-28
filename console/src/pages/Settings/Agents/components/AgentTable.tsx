@@ -1,41 +1,93 @@
-import { Table, Button, Space, Popconfirm, Tag } from "antd";
+import { Table, Button, Space, Popconfirm, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { EditOutlined, DeleteOutlined, RobotOutlined } from "@ant-design/icons";
 import { EyeOff, Eye } from "lucide-react";
 import type { AgentSummary } from "../../../../api/types/agents";
 import { useTheme } from "../../../../contexts/ThemeContext";
+import { getAgentDisplayName } from "../../../../utils/agentDisplayName";
+import { SortableAgentRow, DragHandle } from "./SortableAgentRow";
+import { providerIcon } from "../../Models/components/providerIcon";
 import styles from "../index.module.less";
 
 interface AgentTableProps {
   agents: AgentSummary[];
   loading: boolean;
+  reordering: boolean;
   onEdit: (agent: AgentSummary) => void;
   onDelete: (agentId: string) => void;
   onToggle: (agentId: string, currentEnabled: boolean) => void;
+  onReorder: (activeId: string, overId: string) => void;
 }
 
 export function AgentTable({
   agents,
   loading,
+  reordering,
   onEdit,
   onDelete,
   onToggle,
+  onReorder,
 }: AgentTableProps) {
   const { t } = useTranslation();
   const { isDark } = useTheme();
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+  );
 
-  // Inline style for disabled buttons — CSS cannot reliably override AntD's disabled styles
   const disabledStyle: React.CSSProperties = isDark
     ? { color: "rgba(255,255,255,0.35)", opacity: 1 }
     : {};
 
+  const iconStyle: React.CSSProperties = isDark
+    ? { color: "rgba(255,255,255,0.85)" }
+    : {};
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    onReorder(String(active.id), String(over.id));
+  };
+
   const columns: ColumnsType<AgentSummary> = [
+    {
+      title: "",
+      key: "sort",
+      width: 56,
+      align: "center",
+      render: () => (
+        <Tooltip title={t("agent.dragHandleTooltip")}>
+          <span>
+            <DragHandle disabled={reordering || loading} />
+          </span>
+        </Tooltip>
+      ),
+    },
     {
       title: t("agent.name"),
       dataIndex: "name",
       key: "name",
-      render: (text: string, record: AgentSummary) => (
+      width: 300,
+      render: (_text: string, record: AgentSummary) => (
         <Space>
           <RobotOutlined
             style={{
@@ -43,7 +95,9 @@ export function AgentTable({
               opacity: record.enabled ? 1 : 0.5,
             }}
           />
-          <span style={{ opacity: record.enabled ? 1 : 0.5 }}>{text}</span>
+          <span style={{ opacity: record.enabled ? 1 : 0.5 }}>
+            {getAgentDisplayName(record, t)}
+          </span>
           {!record.enabled && <Tag color="error">{t("agent.disabled")}</Tag>}
         </Space>
       ),
@@ -66,26 +120,48 @@ export function AgentTable({
       ellipsis: true,
     },
     {
+      title: t("agent.modelColumn"),
+      key: "active_model",
+      width: 260,
+      ellipsis: true,
+      render: (_: any, record: AgentSummary) => {
+        if (!record.active_model) {
+          return (
+            <span style={{ opacity: 0.45 }}>{t("agent.modelPlaceholder")}</span>
+          );
+        }
+        return (
+          <Space size={6}>
+            <img
+              src={providerIcon(record.active_model.provider_id)}
+              alt=""
+              style={{ width: 16, height: 16 }}
+            />
+            <Tooltip title={record.active_model.model}>
+              <span>{record.active_model.model}</span>
+            </Tooltip>
+          </Space>
+        );
+      },
+    },
+    {
       title: t("common.actions"),
       key: "actions",
-      width: 400,
       render: (_: any, record: AgentSummary) => (
         <Space>
           <Button
-            type="link"
-            size="small"
+            type="text"
+            size="middle"
             icon={<EditOutlined />}
             onClick={() => onEdit(record)}
             disabled={record.id === "default"}
-            style={record.id === "default" ? disabledStyle : undefined}
+            style={record.id === "default" ? disabledStyle : iconStyle}
             title={
               record.id === "default"
                 ? t("agent.defaultNotEditable")
                 : undefined
             }
-          >
-            {t("common.edit")}
-          </Button>
+          />
           <Popconfirm
             title={
               record.enabled
@@ -103,19 +179,17 @@ export function AgentTable({
             cancelText={t("common.cancel")}
           >
             <Button
-              type="link"
-              size="small"
+              type="text"
+              size="middle"
               icon={record.enabled ? <EyeOff size={14} /> : <Eye size={14} />}
               disabled={record.id === "default"}
-              style={record.id === "default" ? disabledStyle : undefined}
+              style={record.id === "default" ? disabledStyle : iconStyle}
               title={
                 record.id === "default"
                   ? t("agent.defaultNotDisablable")
                   : undefined
               }
-            >
-              {record.enabled ? t("agent.disable") : t("agent.enable")}
-            </Button>
+            />
           </Popconfirm>
           <Popconfirm
             title={t("agent.deleteConfirm")}
@@ -127,7 +201,7 @@ export function AgentTable({
           >
             <Button
               type="link"
-              size="small"
+              size="middle"
               danger
               icon={<DeleteOutlined />}
               disabled={record.id === "default"}
@@ -137,9 +211,7 @@ export function AgentTable({
                   ? t("agent.defaultNotDeletable")
                   : undefined
               }
-            >
-              {t("common.delete")}
-            </Button>
+            />
           </Popconfirm>
         </Space>
       ),
@@ -148,16 +220,29 @@ export function AgentTable({
 
   return (
     <div className={styles.tableCard}>
-      <Table
-        dataSource={agents}
-        columns={columns}
-        loading={loading}
-        rowKey="id"
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: false,
-        }}
-      />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={agents.map((agent) => agent.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <Table
+            dataSource={agents}
+            columns={columns}
+            loading={loading}
+            rowKey="id"
+            components={{
+              body: {
+                row: SortableAgentRow,
+              },
+            }}
+            pagination={false}
+          />
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

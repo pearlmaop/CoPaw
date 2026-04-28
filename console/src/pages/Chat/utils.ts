@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
+import { chatApi } from "../../api/modules/chat";
 export type CopyableContent = {
   type?: string;
   text?: string;
@@ -67,6 +67,12 @@ export function extractUserMessageText(m: any): string {
     .filter((p: any) => p.type === "text")
     .map((p: any) => p.text || "")
     .join("\n");
+}
+
+export function extractTextFromMessage(msg: any): string {
+  const innerMessage = msg?.cards?.[0]?.data?.input?.[0];
+  if (!innerMessage) return "";
+  return extractUserMessageText(innerMessage);
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +153,9 @@ export function toStoredName(v: string): string {
     if (h !== -1) rest = rest.slice(0, h);
     if (rest) {
       const decoded = decodeUriPathSegments(rest);
+      // Windows absolute path: C:\... or C:/...
+      const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/.test(decoded);
+      if (isWindowsAbsolute) return decoded;
       return decoded.startsWith("/") ? decoded : `/${decoded}`;
     }
   }
@@ -165,4 +174,34 @@ export function normalizeContentUrls(part: any): any {
   if (p.type === "video" && typeof p.video_url === "string")
     p.video_url = toStoredName(p.video_url);
   return p;
+}
+
+/** Turn a backend content URL (path or full URL) into a full URL for display. */
+export function toDisplayUrl(url: string | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("file://")) url = url.replace("file://", "");
+  return chatApi.filePreviewUrl(url.startsWith("/") ? url : `/${url}`);
+}
+
+// ---------------------------------------------------------------------------
+// DOM utilities
+// ---------------------------------------------------------------------------
+
+/** Set textarea value and trigger input event for React state sync.
+ * Uses native value setter to bypass React's internal value tracker.
+ */
+export function setTextareaValue(textarea: HTMLTextAreaElement, value: string) {
+  const nativeValueSetter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  if (nativeValueSetter) {
+    nativeValueSetter.call(textarea, value);
+  } else {
+    textarea.value = value;
+  }
+  textarea.selectionStart = textarea.selectionEnd = value.length;
+  const event = new Event("input", { bubbles: true });
+  textarea.dispatchEvent(event);
 }

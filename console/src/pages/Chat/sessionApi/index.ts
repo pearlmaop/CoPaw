@@ -9,7 +9,7 @@ import api, {
   type ChatStatus,
   type Message,
 } from "../../../api";
-import { chatApi } from "../../../api/modules/chat";
+import { toDisplayUrl } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -51,7 +51,7 @@ interface ContentItem {
 /** A backend message after role-normalisation (output of toOutputMessage). */
 interface OutputMessage extends Omit<Message, "role"> {
   role: string;
-  metadata: null;
+  metadata: unknown;
   sequence_number?: number;
 }
 
@@ -60,14 +60,24 @@ interface OutputMessage extends Omit<Message, "role"> {
  * but our backend / window globals require.
  */
 interface ExtendedSession extends IAgentScopeRuntimeWebUISession {
+  /** Session identifier (channel:user_id format) */
   sessionId: string;
+  /** User identifier */
   userId: string;
+  /** Channel name */
   channel: string;
+  /** Additional metadata */
   meta: Record<string, unknown>;
   /** Real backend UUID, used when id is overridden with a local timestamp. */
   realId?: string;
   /** Conversation status from backend. */
   status?: ChatStatus;
+  /** ISO 8601 creation timestamp from backend. */
+  createdAt?: string | null;
+  /** Whether the backend is still generating a response for this session. */
+  generating?: boolean;
+  /** Whether the chat is pinned to the top. */
+  pinned?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,13 +86,6 @@ interface ExtendedSession extends IAgentScopeRuntimeWebUISession {
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-/** Turn a backend content URL (path or full URL) into a full URL for display. */
-function toDisplayUrl(url: string | undefined): string {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return chatApi.filePreviewUrl(url.startsWith("/") ? url : `/${url}`);
 }
 
 /** Extract plain text from a message's content array. */
@@ -96,6 +99,26 @@ const extractTextFromContent = (content: unknown): string => {
     .join("\n");
 };
 
+function resolveContentItemUrl(c: ContentItem): ContentItem {
+  if (c.type === "image" && c.image_url) {
+    return { ...c, image_url: toDisplayUrl(c.image_url as string) };
+  }
+  if (c.type === "audio" && c.data) {
+    return { ...c, data: toDisplayUrl(c.data as string) };
+  }
+  if (c.type === "video" && c.video_url) {
+    return { ...c, video_url: toDisplayUrl(c.video_url as string) };
+  }
+  if (c.type === "file" && (c.file_url || c.file_id)) {
+    return {
+      ...c,
+      file_url: toDisplayUrl((c.file_url as string) || (c.file_id as string)),
+      file_name: (c.filename as string) || (c.file_name as string) || "file",
+    };
+  }
+  return c;
+}
+
 /** Map backend message content to request card content (text + image + file). */
 function contentToRequestParts(
   content: unknown,
@@ -106,41 +129,20 @@ function contentToRequestParts(
   if (!Array.isArray(content)) {
     return [{ type: "text", text: String(content || ""), status: "created" }];
   }
-  const parts: Array<Record<string, unknown>> = [];
-  for (const c of content as ContentItem[]) {
-    if (c.type === "text") {
-      if (c.text) parts.push({ type: "text", text: c.text, status: "created" });
-    } else if (c.type === "image" && c.image_url) {
-      parts.push({
-        type: "image",
-        image_url: toDisplayUrl(c.image_url as string),
-        status: "created",
-      });
-    } else if (c.type === "audio" && c.data) {
-      parts.push({
-        type: "audio",
-        data: toDisplayUrl(c.data as string),
-        status: "created",
-      });
-    } else if (c.type === "video" && c.video_url) {
-      parts.push({
-        type: "video",
-        video_url: toDisplayUrl(c.video_url as string),
-        status: "created",
-      });
-    } else if (c.type === "file" && (c.file_url || c.file_id)) {
-      parts.push({
-        type: "file",
-        file_url: toDisplayUrl((c.file_url as string) || (c.file_id as string)),
-        file_name: (c.filename as string) || (c.file_name as string) || "file",
-        status: "created",
-      });
-    }
-  }
+  const parts = (content as ContentItem[])
+    .map(resolveContentItemUrl)
+    .map((c) => ({ ...c, status: "created" }));
+
   if (parts.length === 0) {
-    parts.push({ type: "text", text: "", status: "created" });
+    return [{ type: "text", text: "", status: "created" }];
   }
+
   return parts;
+}
+function normalizeOutputMessageContent(content: unknown): unknown {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return content;
+  return (content as ContentItem[]).map(resolveContentItemUrl);
 }
 
 /**
@@ -153,7 +155,7 @@ const toOutputMessage = (msg: Message): OutputMessage => ({
     msg.type === TYPE_PLUGIN_CALL_OUTPUT && msg.role === "system"
       ? ROLE_TOOL
       : msg.role,
-  metadata: null,
+  metadata: msg.metadata ?? null,
 });
 
 /** Build a user card (AgentScopeRuntimeRequestCard) from a user message. */
@@ -191,6 +193,12 @@ const buildResponseCard = (
     (max, m) => Math.max(max, m.sequence_number || 0),
     0,
   );
+
+  const normalizedMessages = outputMessages.map((msg) => ({
+    ...msg,
+    content: normalizeOutputMessageContent(msg.content),
+  }));
+
   return {
     id: generateId(),
     role: ROLE_ASSISTANT,
@@ -199,7 +207,7 @@ const buildResponseCard = (
         code: CARD_RESPONSE,
         data: {
           id: `response_${generateId()}`,
-          output: outputMessages,
+          output: normalizedMessages,
           object: "response",
           status: "completed",
           created_at: now,
@@ -246,13 +254,15 @@ const convertMessages = (
 const chatSpecToSession = (chat: ChatSpec): ExtendedSession =>
   ({
     id: chat.id,
-    name: (chat as ChatSpec & { name?: string }).name || DEFAULT_SESSION_NAME,
+    name: chat.name || DEFAULT_SESSION_NAME,
     sessionId: chat.session_id,
     userId: chat.user_id,
     channel: chat.channel,
     messages: [],
     meta: chat.meta || {},
     status: chat.status ?? "idle",
+    createdAt: chat.created_at ?? null,
+    pinned: chat.pinned ?? false,
   }) as ExtendedSession;
 
 /** Returns true when id is a pure numeric local timestamp (not a backend UUID). */
@@ -296,7 +306,7 @@ const resolveRealId = (
 // Per-session user message persistence (survives page refresh)
 // ---------------------------------------------------------------------------
 
-const STORAGE_PREFIX = "copaw_pending_user_msg_";
+const STORAGE_PREFIX = "qwenpaw_pending_user_msg_";
 
 function savePendingUserMessage(sessionId: string, text: string): void {
   try {
@@ -328,6 +338,13 @@ function clearPendingUserMessage(sessionId: string): void {
 
 class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
   private sessionList: IAgentScopeRuntimeWebUISession[] = [];
+
+  /**
+   * When set, getSessionList will move the matching session to the front on the first call,
+   * so the library's useMount auto-selects it instead of always defaulting to sessions[0].
+   * Cleared after first use.
+   */
+  preferredChatId: string | null = null;
 
   /**
    * Cache the latest user message for a chat so it can be patched into
@@ -465,29 +482,50 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
     return s?.realId ?? null;
   }
 
+  /** Apply listChats to sessionList; merge realId and generating by session_id. */
+  private applyChatsToSessionList(
+    chats: ChatSpec[],
+  ): IAgentScopeRuntimeWebUISession[] {
+    const newList = chats
+      .filter((c) => c.id && c.id !== "undefined" && c.id !== "null")
+      .map(chatSpecToSession)
+      .reverse();
+
+    this.sessionList = newList.map((s) => {
+      const existing = this.sessionList.find(
+        (e) =>
+          (e as ExtendedSession).sessionId === (s as ExtendedSession).sessionId,
+      ) as ExtendedSession | undefined;
+      if (!existing) return s;
+      const next = { ...s } as ExtendedSession;
+      if (existing.realId) {
+        next.id = existing.id;
+        next.realId = existing.realId;
+      }
+      if (existing.generating !== undefined) {
+        next.generating = existing.generating;
+      }
+      return next as IAgentScopeRuntimeWebUISession;
+    });
+    if (this.preferredChatId) {
+      const preferredId = this.preferredChatId;
+      this.preferredChatId = null;
+      const idx = this.sessionList.findIndex((s) => s.id === preferredId);
+      if (idx > 0) {
+        const [preferred] = this.sessionList.splice(idx, 1);
+        this.sessionList.unshift(preferred);
+      }
+    }
+    return [...this.sessionList];
+  }
+
   async getSessionList() {
     if (this.sessionListRequest) return this.sessionListRequest;
 
     this.sessionListRequest = (async () => {
       try {
         const chats = await api.listChats();
-        const newList = chats
-          .filter((c) => c.id && c.id !== "undefined" && c.id !== "null")
-          .map(chatSpecToSession)
-          .reverse();
-
-        this.sessionList = newList.map((s) => {
-          const existing = this.sessionList.find(
-            (e) =>
-              (e as ExtendedSession).sessionId ===
-              (s as ExtendedSession).sessionId,
-          ) as ExtendedSession | undefined;
-          return existing?.realId
-            ? { ...s, id: existing.id, realId: existing.realId }
-            : s;
-        });
-
-        return [...this.sessionList];
+        return this.applyChatsToSessionList(chats);
       } finally {
         this.sessionListRequest = null;
       }
