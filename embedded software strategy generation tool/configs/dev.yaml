@@ -1,0 +1,14 @@
+llm:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3"
+  temperature: 0.0
+  max_tokens: 2048
+
+extraction:
+  mineru_fallback: true
+  image_max_size_mb: 5
+
+output:
+  upload_dir: "data/uploads"
+  output_dir: "data/outputs"
+  cache_dir: "data/cache"
